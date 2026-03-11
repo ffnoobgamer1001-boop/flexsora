@@ -3,836 +3,1015 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flexsora Prototype</title>
+    <title>Flexsora Pro - Freelance Marketplace</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Phosphor Icons for simple UI icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
-        /* Hide scrollbar for clean chat UI */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .glass-nav { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .tab-active { border-bottom: 2px solid #2563eb; color: #1e40af; font-weight: 600; }
+        .tab-inactive { color: #64748b; font-weight: 500; border-bottom: 2px solid transparent; }
+        .tab-inactive:hover { color: #0f172a; border-bottom: 2px solid #cbd5e1; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
 
-    <!-- Navbar -->
-    <nav class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50 hidden" id="navbar">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Top Navigation -->
+    <nav class="glass-nav shadow-sm border-b border-slate-200 sticky top-0 z-50 transition-all" id="navbar">
+        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
-                <div class="flex items-center cursor-pointer" onclick="navigate(state.user.role === 'admin' ? 'admin' : 'dashboard')">
-                    <div class="bg-indigo-600 p-2 rounded-lg mr-2 text-white">
-                        <i class="ph-bold ph-briefcase text-xl"></i>
+                <!-- Logo & Primary Links -->
+                <div class="flex items-center">
+                    <div class="flex items-center cursor-pointer mr-8" onclick="navigate('home')">
+                        <i class="ph-fill ph-hexagon text-3xl text-blue-600 mr-2"></i>
+                        <span class="font-bold text-2xl text-slate-900 tracking-tight">Flexsora</span>
                     </div>
-                    <span class="font-bold text-2xl text-gray-900 tracking-tight">Flex<span class="text-indigo-600">sora</span></span>
-                </div>
-                
-                <!-- Dynamic Nav Links -->
-                <div class="hidden md:flex items-center space-x-6" id="nav-links">
-                    <!-- Injected via JS based on role -->
+                    
+                    <div class="hidden md:flex space-x-1" id="nav-links">
+                        <!-- Injected by JS -->
+                    </div>
                 </div>
 
-                <div class="flex items-center space-x-4">
-                    <div class="text-sm text-gray-500 font-medium bg-gray-100 px-3 py-1 rounded-full" id="nav-user-info"></div>
-                    <button onclick="logout()" class="text-gray-400 hover:text-red-500 transition" title="Logout">
-                        <i class="ph-bold ph-sign-out text-2xl"></i>
-                    </button>
+                <!-- User Actions & Profile -->
+                <div class="flex items-center space-x-4" id="nav-actions">
+                    <!-- Injected by JS -->
                 </div>
             </div>
         </div>
     </nav>
 
-    <!-- MAIN CONTENT CONTAINER -->
-    <main id="app-container" class="flex-grow flex flex-col"></main>
+    <!-- Main Content Area -->
+    <main id="app-container" class="flex-grow flex flex-col w-full max-w-[1400px] mx-auto p-4 sm:p-6 lg:p-8"></main>
 
     <script>
         // ==========================================
-        // 1. STATE & LOCAL STORAGE (Data Persistence)
+        // 1. STATE MANAGEMENT (V2 Architecture)
         // ==========================================
         let state = {
-            user: null, // { id, name, role }
-            users: [], // To track all registered users for admin
-            gigs: [],
+            user: null, 
+            users: [], 
+            projects: [], 
+            bids: [], 
             messages: [],
-            orders: [], // Escrow order system
-            activeChat: null, // { partnerId, partnerName }
-            checkoutGig: null,
-            // Buyer Filter States
-            searchQuery: '',
-            filterCategory: 'All',
-            sortBy: 'newest'
+            milestones: [],
+            
+            // View State
+            currentView: 'home',
+            viewData: null, // Holds ID of selected project, etc.
+            
+            // Filter State
+            browseFilters: { search: '', skill: 'All', status: 'open' }
         };
 
-        // Load data from browser storage so it survives page reloads
-        function loadData() {
-            const savedUser = localStorage.getItem('flexsora_test_user');
-            const savedUsers = localStorage.getItem('flexsora_test_users');
-            const savedGigs = localStorage.getItem('flexsora_test_gigs');
-            const savedMessages = localStorage.getItem('flexsora_test_messages');
-            const savedOrders = localStorage.getItem('flexsora_test_orders');
+        const SKILLS = ['Web Development', 'Mobile Apps', 'Graphic Design', 'Video Editing', 'Writing', 'Data Entry'];
 
-            if (savedUser) state.user = JSON.parse(savedUser);
-            if (savedUsers) state.users = JSON.parse(savedUsers);
-            if (savedOrders) state.orders = JSON.parse(savedOrders);
-            if (savedMessages) state.messages = JSON.parse(savedMessages);
-            
-            if (savedGigs) {
-                state.gigs = JSON.parse(savedGigs);
+        // Initial Seed Data to make the prototype look alive
+        const seedData = () => {
+            const u1 = { id: 'c_john', name: 'John Tech', role: 'client', balance: 5000 };
+            const u2 = { id: 'f_alice', name: 'Alice Dev', role: 'freelancer', balance: 0, skills: ['Web Development', 'Mobile Apps'] };
+            state.users = [u1, u2];
+
+            const p1 = {
+                id: 'p_101', clientId: 'c_john', clientName: 'John Tech',
+                title: 'Build a React E-commerce Frontend',
+                desc: 'Looking for an experienced React developer to build a responsive storefront. Must have experience with Tailwind and Redux. API is already built.',
+                skills: ['Web Development'], minBudget: 500, maxBudget: 1500,
+                status: 'open', timestamp: Date.now() - 86400000
+            };
+            const p2 = {
+                id: 'p_102', clientId: 'c_john', clientName: 'John Tech',
+                title: 'Design a Modern Tech Logo',
+                desc: 'Need a sleek, minimal logo for a new AI startup. Deliverables in SVG and PNG.',
+                skills: ['Graphic Design'], minBudget: 50, maxBudget: 200,
+                status: 'open', timestamp: Date.now() - 3600000
+            };
+            state.projects = [p1, p2];
+
+            state.bids = [{
+                id: 'b_201', projectId: 'p_101', freelancerId: 'f_alice', freelancerName: 'Alice Dev',
+                amount: 1200, days: 14, proposal: 'I have built 5 e-commerce sites using React and Tailwind. I can complete this within 2 weeks.', timestamp: Date.now() - 4000000
+            }];
+        };
+
+        function loadData() {
+            const savedUser = localStorage.getItem('fx_v2_user');
+            if (savedUser) {
+                state.user = JSON.parse(savedUser);
+                state.users = JSON.parse(localStorage.getItem('fx_v2_users')) || [];
+                state.projects = JSON.parse(localStorage.getItem('fx_v2_projects')) || [];
+                state.bids = JSON.parse(localStorage.getItem('fx_v2_bids')) || [];
+                state.messages = JSON.parse(localStorage.getItem('fx_v2_messages')) || [];
+                state.milestones = JSON.parse(localStorage.getItem('fx_v2_milestones')) || [];
             } else {
-                // Seed dummy gigs if empty so buyer has something to look at
-                state.gigs = [
-                    { id: 'g1', freelancerId: 'f_alice', freelancerName: 'Alice Video', title: 'YouTube Video Editing', desc: 'Fast turnaround, modern edits.', price: 50, category: 'Video', timestamp: Date.now() - 100000 },
-                    { id: 'g2', freelancerId: 'f_bob', freelancerName: 'Bob Designs', title: 'Minimalist Logo Design', desc: 'I will design a modern logo for your brand.', price: 120, category: 'Design', timestamp: Date.now() }
-                ];
+                seedData(); // First time visit
             }
         }
 
-        // Save data to browser storage
         function saveData() {
-            localStorage.setItem('flexsora_test_user', JSON.stringify(state.user));
-            localStorage.setItem('flexsora_test_users', JSON.stringify(state.users));
-            localStorage.setItem('flexsora_test_gigs', JSON.stringify(state.gigs));
-            localStorage.setItem('flexsora_test_messages', JSON.stringify(state.messages));
-            localStorage.setItem('flexsora_test_orders', JSON.stringify(state.orders));
+            if(!state.user) return;
+            localStorage.setItem('fx_v2_user', JSON.stringify(state.user));
+            localStorage.setItem('fx_v2_users', JSON.stringify(state.users));
+            localStorage.setItem('fx_v2_projects', JSON.stringify(state.projects));
+            localStorage.setItem('fx_v2_bids', JSON.stringify(state.bids));
+            localStorage.setItem('fx_v2_messages', JSON.stringify(state.messages));
+            localStorage.setItem('fx_v2_milestones', JSON.stringify(state.milestones));
         }
 
         // ==========================================
-        // 2. NAVIGATION & RENDERING ENGINE
+        // 2. ROUTING & NAVIGATION
         // ==========================================
         const container = document.getElementById('app-container');
-        const navbar = document.getElementById('navbar');
-        const navLinks = document.getElementById('nav-links');
 
-        function navigate(view) {
+        function navigate(view, data = null) {
+            state.currentView = view;
+            state.viewData = data;
             saveData();
-            if (!state.user && view !== 'login') {
+            
+            if (!state.user && view !== 'home' && view !== 'login') {
                 view = 'login';
             }
 
-            // Update Navbar
-            if (state.user) {
-                navbar.classList.remove('hidden');
-                document.getElementById('nav-user-info').innerHTML = `<span class="font-bold text-gray-700">${state.user.name}</span> <span class="text-xs text-indigo-500 uppercase ml-1">${state.user.role}</span>`;
-                
-                // Build dynamic nav links
-                let linksHtml = '';
-                if(state.user.role === 'buyer') {
-                    linksHtml = `
-                        <button onclick="navigate('dashboard')" class="${view==='dashboard'?'text-indigo-600 font-bold':'text-gray-500 hover:text-gray-900'}">Marketplace</button>
-                        <button onclick="navigate('inbox')" class="${view==='inbox'?'text-indigo-600 font-bold':'text-gray-500 hover:text-gray-900'}">Inbox</button>
-                        <button onclick="navigate('orders')" class="${view==='orders'?'text-indigo-600 font-bold':'text-gray-500 hover:text-gray-900'}">My Orders</button>
-                    `;
-                } else if(state.user.role === 'freelancer') {
-                    linksHtml = `
-                        <button onclick="navigate('dashboard')" class="${view==='dashboard'?'text-indigo-600 font-bold':'text-gray-500 hover:text-gray-900'}">My Dashboard</button>
-                        <button onclick="navigate('inbox')" class="${view==='inbox'?'text-indigo-600 font-bold':'text-gray-500 hover:text-gray-900'}">Inbox</button>
-                        <button onclick="navigate('orders')" class="${view==='orders'?'text-indigo-600 font-bold':'text-gray-500 hover:text-gray-900'}">Manage Orders</button>
-                    `;
-                } else if(state.user.role === 'admin') {
-                    linksHtml = `
-                        <button onclick="navigate('admin')" class="${view==='admin'?'text-indigo-600 font-bold':'text-gray-500 hover:text-gray-900'}">Escrow & Admin</button>
-                    `;
-                }
-                navLinks.innerHTML = linksHtml;
+            updateNavbar();
 
-            } else {
-                navbar.classList.add('hidden');
+            container.innerHTML = '';
+            window.scrollTo(0, 0);
+
+            if (view === 'home') renderHome();
+            else if (view === 'login') renderLogin();
+            else if (view === 'dashboard') state.user.role === 'client' ? renderClientDashboard() : renderFreelancerDashboard();
+            else if (view === 'browse') renderBrowseProjects();
+            else if (view === 'post_project') renderPostProject();
+            else if (view === 'project_details') renderProjectDetails(data);
+            else if (view === 'workspace') renderWorkspace(data);
+            else if (view === 'admin') renderAdmin();
+        }
+
+        function updateNavbar() {
+            const navLinks = document.getElementById('nav-links');
+            const navActions = document.getElementById('nav-actions');
+
+            if (!state.user) {
+                navLinks.innerHTML = `<button onclick="navigate('browse')" class="px-3 py-2 text-slate-600 hover:text-slate-900 font-medium">Browse Projects</button>`;
+                navActions.innerHTML = `
+                    <button onclick="navigate('login')" class="text-slate-600 font-medium hover:text-slate-900 mr-2">Log In</button>
+                    <button onclick="navigate('login')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition">Sign Up</button>
+                `;
+                return;
             }
 
-            // Render correct view
-            container.innerHTML = '';
-            if (view === 'login') renderLogin();
-            else if (view === 'dashboard' && state.user.role === 'buyer') renderBuyerDashboard();
-            else if (view === 'dashboard' && state.user.role === 'freelancer') renderFreelancerDashboard();
-            else if (view === 'admin' && state.user.role === 'admin') renderAdminDashboard();
-            else if (view === 'chat') renderChat();
-            else if (view === 'inbox') renderInbox();
-            else if (view === 'orders') renderOrders();
-            else if (view === 'checkout') renderCheckout();
+            // Links based on role
+            let links = `<button onclick="navigate('dashboard')" class="px-4 py-2 rounded-lg ${state.currentView === 'dashboard' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'} font-medium transition">Dashboard</button>`;
+            
+            if (state.user.role === 'client') {
+                links += `
+                    <button onclick="navigate('post_project')" class="px-4 py-2 rounded-lg ${state.currentView === 'post_project' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'} font-medium transition">Post a Project</button>
+                    <button onclick="navigate('browse')" class="px-4 py-2 rounded-lg ${state.currentView === 'browse' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'} font-medium transition">Find Freelancers</button>
+                `;
+            } else if (state.user.role === 'freelancer') {
+                links += `
+                    <button onclick="navigate('browse')" class="px-4 py-2 rounded-lg ${state.currentView === 'browse' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'} font-medium transition">Browse Projects</button>
+                `;
+            } else if (state.user.role === 'admin') {
+                links += `<button onclick="navigate('admin')" class="px-4 py-2 rounded-lg bg-slate-100 text-slate-900 font-medium">System Admin</button>`;
+            }
+
+            navLinks.innerHTML = links;
+
+            // Actions (Profile, Notifications, Balance)
+            let balanceBadge = state.user.role !== 'admin' ? 
+                `<div class="hidden sm:flex items-center bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 mr-2 cursor-help" title="Account Balance">
+                    <i class="ph-bold ph-wallet text-slate-500 mr-2"></i>
+                    <span class="font-bold text-slate-700">$${state.user.balance || 0}</span>
+                </div>` : '';
+
+            navActions.innerHTML = `
+                ${balanceBadge}
+                <button class="p-2 text-slate-400 hover:text-blue-600 transition relative">
+                    <i class="ph-fill ph-bell text-2xl"></i>
+                    <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                </button>
+                <div class="h-8 w-px bg-slate-200 mx-2"></div>
+                <div class="flex items-center cursor-pointer group">
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                        ${state.user.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="ml-2 hidden sm:block">
+                        <p class="text-sm font-bold text-slate-800 leading-tight">${state.user.name}</p>
+                        <p class="text-[10px] text-slate-500 uppercase tracking-wider">${state.user.role}</p>
+                    </div>
+                </div>
+                <button onclick="logout()" class="ml-4 p-2 text-slate-400 hover:text-red-500 transition" title="Logout">
+                    <i class="ph-bold ph-sign-out text-xl"></i>
+                </button>
+            `;
         }
 
         // ==========================================
-        // 3. VIEWS (HTML GENERATORS)
+        // 3. UI GENERATORS
         // ==========================================
 
-        // --- LOGIN VIEW ---
         function renderLogin() {
             container.innerHTML = `
-                <div class="flex-grow flex items-center justify-center p-4">
-                    <div class="bg-white max-w-md w-full rounded-2xl shadow-xl p-8">
-                        <div class="text-center mb-8">
-                            <div class="inline-block bg-indigo-600 p-3 rounded-xl text-white mb-4">
-                                <i class="ph-bold ph-briefcase text-4xl"></i>
-                            </div>
-                            <h2 class="text-3xl font-bold text-gray-900">Flexsora Network</h2>
-                            <p class="text-gray-500 text-sm mt-2">Enter any name to test the features. Data saves locally.</p>
+                <div class="flex-grow flex items-center justify-center py-12">
+                    <div class="bg-white max-w-md w-full rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+                        <div class="p-8 text-center bg-slate-900 text-white relative overflow-hidden">
+                            <div class="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-blue-500 opacity-20 blur-2xl"></div>
+                            <i class="ph-fill ph-hexagon text-5xl text-blue-400 mb-4"></i>
+                            <h2 class="text-3xl font-bold">Welcome Back</h2>
+                            <p class="text-slate-400 text-sm mt-2">Sign in to your prototype account</p>
                         </div>
-                        
-                        <input type="text" id="login-name" placeholder="Enter your Name" class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 mb-6 focus:outline-none focus:border-indigo-600 transition">
-                        
-                        <div class="grid grid-cols-2 gap-4 mb-4">
-                            <button onclick="login('buyer')" class="border-2 border-indigo-100 hover:border-indigo-600 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl p-4 transition-all font-bold flex flex-col items-center">
-                                <i class="ph-bold ph-shopping-cart text-2xl mb-2"></i> Buyer
-                            </button>
-                            <button onclick="login('freelancer')" class="border-2 border-emerald-100 hover:border-emerald-600 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl p-4 transition-all font-bold flex flex-col items-center">
-                                <i class="ph-bold ph-paint-brush text-2xl mb-2"></i> Freelancer
-                            </button>
-                        </div>
-                        <button onclick="login('admin')" class="w-full border-2 border-slate-200 hover:border-slate-800 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl p-3 transition-all font-bold flex items-center justify-center">
-                            <i class="ph-bold ph-shield-check text-xl mr-2"></i> System Admin Login
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-
-        // --- BUYER DASHBOARD ---
-        function renderBuyerDashboard() {
-            // Filter and Sort Logic
-            let filteredGigs = state.gigs.filter(gig => {
-                const matchesSearch = gig.title.toLowerCase().includes(state.searchQuery.toLowerCase()) || 
-                                      gig.desc.toLowerCase().includes(state.searchQuery.toLowerCase());
-                const matchesCategory = state.filterCategory === 'All' || gig.category === state.filterCategory;
-                return matchesSearch && matchesCategory;
-            });
-
-            filteredGigs.sort((a, b) => {
-                if(state.sortBy === 'price_low') return a.price - b.price;
-                if(state.sortBy === 'price_high') return b.price - a.price;
-                if(state.sortBy === 'name') return a.title.localeCompare(b.title);
-                return b.timestamp - a.timestamp; // default: newest
-            });
-
-            let gigsHtml = filteredGigs.map(gig => `
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md transition">
-                    <div class="h-24 bg-gradient-to-r from-indigo-500 to-purple-600 p-4 flex items-end justify-between">
-                        <span class="bg-white/20 text-white px-2 py-1 rounded text-xs font-medium backdrop-blur-sm">${gig.category}</span>
-                        <span class="font-bold text-white text-lg">$${gig.price}</span>
-                    </div>
-                    <div class="p-5 flex-grow">
-                        <h3 class="font-bold text-gray-900 mb-2 leading-tight">${gig.title}</h3>
-                        <p class="text-sm text-gray-500 mb-4 line-clamp-2">${gig.desc}</p>
-                        <div class="text-xs text-gray-400 font-medium flex items-center"><i class="ph-fill ph-user-circle mr-1 text-lg"></i> By ${gig.freelancerName}</div>
-                    </div>
-                    <div class="grid grid-cols-2 border-t divide-x">
-                        <button onclick="openChat('${gig.freelancerId}', '${gig.freelancerName}')" class="py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition flex justify-center items-center">
-                            <i class="ph-bold ph-chat-circle text-lg mr-2"></i> Chat
-                        </button>
-                        <button onclick="openCheckout('${gig.id}')" class="py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition">
-                            Hire Now
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-
-            if(filteredGigs.length === 0) gigsHtml = `<div class="col-span-full text-center py-12 bg-white rounded-xl border border-dashed"><i class="ph-bold ph-magnifying-glass text-4xl text-gray-300 mb-3"></i><br><span class="text-gray-500">No gigs found matching your criteria.</span></div>`;
-
-            container.innerHTML = `
-                <div class="bg-white border-b border-gray-200 py-6">
-                    <div class="max-w-7xl mx-auto w-full px-4">
-                        <h1 class="text-3xl font-bold text-gray-900 mb-2">Marketplace</h1>
-                        <p class="text-gray-500 mb-6">Browse and hire top community talent securely.</p>
-                        
-                        <!-- Search & Filter Bar -->
-                        <div class="flex flex-col md:flex-row gap-4 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                            <div class="flex-grow flex items-center bg-white border rounded-lg px-3 focus-within:ring-2 focus-within:ring-indigo-500">
-                                <i class="ph-bold ph-magnifying-glass text-gray-400"></i>
-                                <input type="text" id="search-input" value="${state.searchQuery}" onkeyup="updateFilters()" placeholder="Search services..." class="w-full border-none outline-none px-3 py-2 bg-transparent">
+                        <div class="p-8">
+                            <input type="text" id="login-name" placeholder="Full Name" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition">
+                            <p class="text-sm font-semibold text-slate-600 mb-3">Select your account type:</p>
+                            <div class="grid grid-cols-2 gap-3 mb-4">
+                                <button onclick="login('client')" class="border border-slate-200 hover:border-blue-500 hover:bg-blue-50 text-slate-700 rounded-lg p-4 transition-all text-center group">
+                                    <i class="ph-duotone ph-buildings text-3xl mb-2 text-slate-400 group-hover:text-blue-600 transition"></i><br>
+                                    <span class="font-bold">Client</span>
+                                    <p class="text-[10px] text-slate-400 mt-1">Hire talent</p>
+                                </button>
+                                <button onclick="login('freelancer')" class="border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50 text-slate-700 rounded-lg p-4 transition-all text-center group">
+                                    <i class="ph-duotone ph-laptop text-3xl mb-2 text-slate-400 group-hover:text-emerald-600 transition"></i><br>
+                                    <span class="font-bold">Freelancer</span>
+                                    <p class="text-[10px] text-slate-400 mt-1">Find work</p>
+                                </button>
                             </div>
-                            <select id="category-filter" onchange="updateFilters()" class="border rounded-lg px-4 py-2 bg-white outline-none focus:ring-2 focus:ring-indigo-500 min-w-[150px]">
-                                <option value="All" ${state.filterCategory==='All'?'selected':''}>All Categories</option>
-                                <option value="Video" ${state.filterCategory==='Video'?'selected':''}>Video Editing</option>
-                                <option value="Design" ${state.filterCategory==='Design'?'selected':''}>Design & Art</option>
-                                <option value="Programming" ${state.filterCategory==='Programming'?'selected':''}>Programming</option>
-                                <option value="Other" ${state.filterCategory==='Other'?'selected':''}>Other</option>
-                            </select>
-                            <select id="sort-filter" onchange="updateFilters()" class="border rounded-lg px-4 py-2 bg-white outline-none focus:ring-2 focus:ring-indigo-500 min-w-[150px]">
-                                <option value="newest" ${state.sortBy==='newest'?'selected':''}>Newest First</option>
-                                <option value="price_low" ${state.sortBy==='price_low'?'selected':''}>Price: Low to High</option>
-                                <option value="price_high" ${state.sortBy==='price_high'?'selected':''}>Price: High to Low</option>
-                                <option value="name" ${state.sortBy==='name'?'selected':''}>Name (A-Z)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="max-w-7xl mx-auto w-full px-4 py-8 flex-grow">
-                    <div class="grid md:grid-cols-3 lg:grid-cols-4 gap-6">
-                        ${gigsHtml}
-                    </div>
-                </div>
-            `;
-        }
-
-        // --- FREELANCER DASHBOARD ---
-        function renderFreelancerDashboard() {
-            // Find gigs owned by me
-            const myGigs = state.gigs.filter(g => g.freelancerId === state.user.id);
-            let myGigsHtml = myGigs.map(gig => `
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex justify-between items-center mb-3">
-                    <div>
-                        <h4 class="font-bold text-gray-900">${gig.title}</h4>
-                        <p class="text-sm text-gray-500">$${gig.price} • ${gig.category}</p>
-                    </div>
-                    <button onclick="deleteGig('${gig.id}')" class="text-red-500 hover:bg-red-50 p-2 rounded-lg" title="Delete Gig"><i class="ph-bold ph-trash"></i></button>
-                </div>
-            `).join('');
-            if(myGigs.length === 0) myGigsHtml = `<p class="text-gray-400 text-sm p-4 bg-gray-50 rounded-xl text-center border border-dashed border-gray-300">You haven't posted any gigs yet.</p>`;
-
-            // Calculate Earnings
-            const myOrders = state.orders.filter(o => o.freelancerId === state.user.id);
-            const pendingEarnings = myOrders.filter(o => ['pending_delivery', 'delivered', 'approved'].includes(o.status)).reduce((sum, o) => sum + o.price, 0);
-            const clearedEarnings = myOrders.filter(o => o.status === 'paid_out').reduce((sum, o) => sum + o.price, 0);
-
-            container.innerHTML = `
-                <div class="max-w-7xl mx-auto w-full px-4 py-8 grid md:grid-cols-3 gap-8">
-                    <div class="md:col-span-2 space-y-8">
-                        
-                        <!-- Quick Stats -->
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
-                                <p class="text-sm text-gray-500 font-medium">Pending Earnings (Escrow)</p>
-                                <h3 class="text-2xl font-bold text-amber-600">$${pendingEarnings}</h3>
-                            </div>
-                            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
-                                <p class="text-sm text-gray-500 font-medium">Cleared Earnings</p>
-                                <h3 class="text-2xl font-bold text-emerald-600">$${clearedEarnings}</h3>
-                            </div>
-                        </div>
-
-                        <!-- Post Gig -->
-                        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                            <h2 class="text-xl font-bold mb-4 flex items-center"><i class="ph-bold ph-plus-circle text-indigo-600 mr-2 text-2xl"></i> Post a New Gig</h2>
-                            <div class="space-y-4">
-                                <input type="text" id="gig-title" placeholder="Gig Title (e.g., Logo Design)" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-indigo-500 outline-none">
-                                <textarea id="gig-desc" placeholder="Describe what you will do..." class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-indigo-500 outline-none h-24"></textarea>
-                                <div class="flex space-x-4">
-                                    <input type="number" id="gig-price" placeholder="Price ($)" class="w-1/2 border border-gray-300 rounded-lg px-4 py-2 focus:border-indigo-500 outline-none">
-                                    <select id="gig-category" class="w-1/2 border border-gray-300 rounded-lg px-4 py-2 focus:border-indigo-500 outline-none bg-white">
-                                        <option value="Video">Video Editing</option>
-                                        <option value="Design">Design & Art</option>
-                                        <option value="Programming">Programming</option>
-                                        <option value="Other">Other</option>
-                                    </select>
-                                </div>
-                                <button onclick="postGig()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition shadow-sm">Publish Gig</button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <!-- Active Gigs List -->
-                        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sticky top-20">
-                            <h3 class="font-bold text-gray-800 text-lg mb-4 flex items-center"><i class="ph-bold ph-briefcase text-emerald-500 mr-2 text-2xl"></i> My Active Gigs</h3>
-                            ${myGigsHtml}
+                            <button onclick="login('admin')" class="w-full text-xs text-slate-400 hover:text-slate-800 underline mt-4">Login as Platform Admin</button>
                         </div>
                     </div>
                 </div>
             `;
         }
 
-        // --- SHARED INBOX VIEW ---
-        function renderInbox() {
-            let chatPartners = new Set();
-            let partnerNames = {};
-            let lastMessages = {}; // To show message preview
+        // --- DASHBOARDS ---
 
-            // Sort messages to get the latest ones last
-            const sortedMessages = [...state.messages].sort((a,b) => a.timestamp - b.timestamp);
+        function renderClientDashboard() {
+            const myProjects = state.projects.filter(p => p.clientId === state.user.id).sort((a,b) => b.timestamp - a.timestamp);
+            const openProjects = myProjects.filter(p => p.status === 'open');
+            const activeProjects = myProjects.filter(p => p.status === 'in_progress');
 
-            sortedMessages.forEach(m => {
-                if (m.chatId.includes(state.user.id) && m.senderId !== 'system') {
-                    const partnerId = m.senderId === state.user.id ? m.chatId.replace(state.user.id, '').replace('_', '') : m.senderId;
-                    chatPartners.add(partnerId);
-                    if(m.senderId !== state.user.id) partnerNames[partnerId] = m.senderName; 
-                    lastMessages[partnerId] = m.text; // Keeps updating to the latest
-                }
-            });
-
-            let inboxHtml = Array.from(chatPartners).map(pid => `
-                <button onclick="openChat('${pid}', '${partnerNames[pid] || 'User'}')" class="w-full text-left p-4 border-b border-gray-100 hover:bg-gray-50 flex items-center transition">
-                    <div class="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xl mr-4 flex-shrink-0">
-                        ${(partnerNames[pid] || 'U').charAt(0).toUpperCase()}
-                    </div>
-                    <div class="flex-grow overflow-hidden">
-                        <h4 class="font-bold text-gray-900">${partnerNames[pid] || 'User'}</h4>
-                        <p class="text-sm text-gray-500 truncate">${lastMessages[pid]}</p>
-                    </div>
-                    <i class="ph-bold ph-caret-right text-gray-400 ml-2"></i>
-                </button>
-            `).join('');
-
-            if(chatPartners.size === 0) inboxHtml = `<div class="p-10 text-center text-gray-500"><i class="ph-bold ph-chats text-5xl text-gray-300 mb-3"></i><br>No messages yet.</div>`;
-
-            container.innerHTML = `
-                <div class="max-w-4xl mx-auto w-full px-4 py-8">
-                    <h1 class="text-3xl font-bold text-gray-900 mb-6 flex items-center"><i class="ph-fill ph-chats-circle text-indigo-600 mr-3"></i> Direct Messages</h1>
-                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                        ${inboxHtml}
-                    </div>
-                </div>
-            `;
-        }
-
-
-        // --- ORDERS & ESCROW VIEW ---
-        function renderOrders() {
-            const isBuyer = state.user.role === 'buyer';
-            const myOrders = state.orders.filter(o => isBuyer ? o.buyerId === state.user.id : o.freelancerId === state.user.id)
-                                         .sort((a,b) => b.timestamp - a.timestamp);
-
-            let ordersHtml = myOrders.map(o => {
-                let statusBadge = '';
-                let actionArea = '';
-
-                // Status Badges
-                if(o.status === 'pending_delivery') statusBadge = `<span class="bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-bold">Awaiting Delivery</span>`;
-                else if(o.status === 'delivered') statusBadge = `<span class="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-bold">Review Required</span>`;
-                else if(o.status === 'approved') statusBadge = `<span class="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-bold">Approved (Escrow Processing)</span>`;
-                else if(o.status === 'paid_out') statusBadge = `<span class="bg-gray-100 text-gray-800 text-xs px-3 py-1 rounded-full font-bold">Completed & Paid</span>`;
-
-                // Actions for Buyer
-                if(isBuyer) {
-                    if(o.status === 'delivered') {
-                        actionArea = `
-                            <div class="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
-                                <p class="text-sm font-medium text-blue-900 mb-2">Freelancer delivered the work:</p>
-                                <p class="text-sm bg-white p-3 rounded border border-blue-200 mb-3 font-mono break-all">${o.deliveryLink}</p>
-                                <button onclick="approveDelivery('${o.id}')" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-emerald-700 transition">Approve Work</button>
-                            </div>
-                        `;
-                    }
-                } 
-                // Actions for Freelancer
-                else {
-                    if(o.status === 'pending_delivery') {
-                        actionArea = `
-                            <div class="mt-4 flex gap-2">
-                                <input type="text" id="delivery_link_${o.id}" placeholder="Paste link to finished work (Drive, Dropbox, etc)" class="flex-grow border rounded-lg px-3 py-2 text-sm">
-                                <button onclick="submitDelivery('${o.id}')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition">Submit Work</button>
-                            </div>
-                        `;
-                    } else if(o.status === 'delivered') {
-                         actionArea = `<p class="text-sm text-gray-500 mt-3 italic"><i class="ph-bold ph-clock"></i> Waiting for buyer to approve...</p>`;
-                    }
-                }
-
-                const partnerName = isBuyer ? o.freelancerName : o.buyerName;
-                const partnerLabel = isBuyer ? 'Freelancer' : 'Buyer';
-
-                return `
-                    <div class="bg-white border border-gray-200 rounded-xl p-5 mb-4 shadow-sm">
-                        <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 class="font-bold text-gray-900 text-lg">${o.gigTitle}</h3>
-                                <p class="text-sm text-gray-500">Order ID: #${o.id.substring(0,8)} • ${new Date(o.timestamp).toLocaleDateString()}</p>
-                            </div>
-                            <div class="text-right">
-                                <div class="font-bold text-indigo-600 text-xl mb-1">$${o.price}</div>
-                                ${statusBadge}
-                            </div>
-                        </div>
-                        <div class="border-t border-gray-100 pt-3 mt-3 flex justify-between items-center">
-                            <p class="text-sm text-gray-600"><span class="font-medium">${partnerLabel}:</span> ${partnerName}</p>
-                            <button onclick="openChat('${isBuyer ? o.freelancerId : o.buyerId}', '${partnerName}')" class="text-indigo-600 text-sm font-medium hover:underline flex items-center">
-                                <i class="ph-bold ph-chat-circle mr-1"></i> Message
-                            </button>
-                        </div>
-                        ${actionArea}
-                    </div>
-                `;
-            }).join('');
-
-            if(myOrders.length === 0) ordersHtml = `<div class="p-10 text-center text-gray-500 border border-dashed rounded-xl"><i class="ph-bold ph-receipt text-5xl text-gray-300 mb-3"></i><br>No orders found.</div>`;
-
-            container.innerHTML = `
-                <div class="max-w-4xl mx-auto w-full px-4 py-8">
-                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Order History & Deliveries</h1>
-                    <p class="text-gray-500 mb-8">Manage your active orders securely through Escrow.</p>
-                    ${ordersHtml}
-                </div>
-            `;
-        }
-
-
-        // --- ADMIN DASHBOARD ---
-        function renderAdminDashboard() {
-            // Stats
-            const totalVolume = state.orders.reduce((sum, o) => sum + o.price, 0);
-            const pendingActions = state.orders.filter(o => o.status === 'approved').length; // Waiting to be paid out
-            const totalUsers = state.users.length;
-
-            let ordersHtml = state.orders.sort((a,b) => b.timestamp - a.timestamp).map(o => {
+            let projectListHtml = myProjects.map(p => {
+                const bidsCount = state.bids.filter(b => b.projectId === p.id).length;
+                let statusUI = '';
                 let actionBtn = '';
-                if(o.status === 'approved') {
-                    actionBtn = `<button onclick="releaseFunds('${o.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-sm font-bold shadow hover:bg-emerald-700">Release Funds to Freelancer</button>`;
+                
+                if(p.status === 'open') {
+                    statusUI = `<span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold uppercase tracking-wider">Open for Bidding</span>`;
+                    actionBtn = `<button onclick="navigate('project_details', '${p.id}')" class="text-blue-600 hover:underline font-medium text-sm">View Bids (${bidsCount})</button>`;
+                } else if(p.status === 'in_progress') {
+                    statusUI = `<span class="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-bold uppercase tracking-wider">In Progress</span>`;
+                    actionBtn = `<button onclick="navigate('workspace', '${p.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition">Open Workspace</button>`;
+                } else if(p.status === 'completed') {
+                    statusUI = `<span class="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-bold uppercase tracking-wider">Completed</span>`;
+                    actionBtn = `<button onclick="navigate('workspace', '${p.id}')" class="text-slate-500 hover:text-slate-800 font-medium text-sm">View Archive</button>`;
                 }
 
                 return `
-                    <tr class="border-b border-gray-100 hover:bg-gray-50">
-                        <td class="p-3 text-sm font-medium text-gray-900">#${o.id.substring(0,6)}</td>
-                        <td class="p-3 text-sm text-gray-600">${o.gigTitle}</td>
-                        <td class="p-3 text-sm text-gray-600">${o.buyerName}</td>
-                        <td class="p-3 text-sm text-gray-600">${o.freelancerName}</td>
-                        <td class="p-3 text-sm font-bold text-indigo-600">$${o.price}</td>
-                        <td class="p-3 text-sm"><span class="bg-gray-200 text-gray-800 text-xs px-2 py-1 rounded-full uppercase">${o.status.replace('_', ' ')}</span></td>
-                        <td class="p-3 text-right">${actionBtn}</td>
-                    </tr>
+                    <div class="p-5 border-b border-slate-100 hover:bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4 transition">
+                        <div>
+                            <div class="flex items-center gap-3 mb-1">
+                                <h3 class="font-bold text-lg text-slate-900 cursor-pointer hover:text-blue-600" onclick="navigate('project_details', '${p.id}')">${p.title}</h3>
+                                ${statusUI}
+                            </div>
+                            <p class="text-sm text-slate-500 line-clamp-1">${p.desc}</p>
+                            <div class="mt-2 text-xs text-slate-400 font-medium">Posted: ${new Date(p.timestamp).toLocaleDateString()} • Budget: $${p.minBudget} - $${p.maxBudget}</div>
+                        </div>
+                        <div class="flex-shrink-0">
+                            ${actionBtn}
+                        </div>
+                    </div>
                 `;
             }).join('');
 
-            if(state.orders.length === 0) ordersHtml = `<tr><td colspan="7" class="text-center p-6 text-gray-500">No orders in system.</td></tr>`;
+            if(myProjects.length === 0) projectListHtml = `<div class="p-12 text-center text-slate-500"><i class="ph-duotone ph-folder-open text-5xl text-slate-300 mb-3"></i><p>You haven't posted any projects yet.</p><button onclick="navigate('post_project')" class="mt-4 text-blue-600 font-medium hover:underline">Post your first project</button></div>`;
 
             container.innerHTML = `
-                <div class="bg-slate-900 py-8 border-b border-slate-800">
-                    <div class="max-w-7xl mx-auto w-full px-4 flex items-center text-white">
-                        <i class="ph-bold ph-shield-check text-4xl text-indigo-400 mr-4"></i>
-                        <div>
-                            <h1 class="text-3xl font-bold">Admin Control Panel</h1>
-                            <p class="text-slate-400 text-sm">Escrow Management & System Overview</p>
+                <div class="grid lg:grid-cols-4 gap-8">
+                    <!-- Sidebar -->
+                    <div class="lg:col-span-1 space-y-6">
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                            <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-2xl font-bold text-slate-700 mb-4 shadow-inner border border-slate-200">${state.user.name.charAt(0)}</div>
+                            <h2 class="text-xl font-bold text-slate-900">${state.user.name}</h2>
+                            <p class="text-sm text-slate-500 mb-4">Client Account</p>
+                            <button onclick="navigate('post_project')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg transition shadow-sm">Post a Project</button>
                         </div>
-                    </div>
-                </div>
-
-                <div class="max-w-7xl mx-auto w-full px-4 py-8 space-y-8">
-                    
-                    <!-- Stats -->
-                    <div class="grid grid-cols-3 gap-6">
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-indigo-500">
-                            <p class="text-sm text-gray-500 font-medium">Total Escrow Volume</p>
-                            <h3 class="text-3xl font-bold text-gray-900">$${totalVolume}</h3>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-amber-500">
-                            <p class="text-sm text-gray-500 font-medium">Pending Admin Actions</p>
-                            <h3 class="text-3xl font-bold text-gray-900">${pendingActions}</h3>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-emerald-500">
-                            <p class="text-sm text-gray-500 font-medium">Registered Users</p>
-                            <h3 class="text-3xl font-bold text-gray-900">${totalUsers}</h3>
+                        
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                            <h3 class="font-bold text-slate-800 mb-4 uppercase text-xs tracking-wider">Overview</h3>
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-slate-600 text-sm">Open Projects</span>
+                                <span class="bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-xs font-bold">${openProjects.length}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-600 text-sm">Active Work</span>
+                                <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-xs font-bold">${activeProjects.length}</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Orders Table -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div class="p-5 border-b border-gray-100 bg-gray-50">
-                            <h3 class="font-bold text-gray-800 text-lg">System Orders (Escrow Vault)</h3>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="bg-gray-100 text-gray-600 text-sm border-b">
-                                        <th class="p-3 font-medium">ID</th>
-                                        <th class="p-3 font-medium">Gig</th>
-                                        <th class="p-3 font-medium">Buyer</th>
-                                        <th class="p-3 font-medium">Freelancer</th>
-                                        <th class="p-3 font-medium">Amount</th>
-                                        <th class="p-3 font-medium">Status</th>
-                                        <th class="p-3 font-medium text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${ordersHtml}
-                                </tbody>
-                            </table>
+                    <!-- Main Feed -->
+                    <div class="lg:col-span-3">
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div class="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                                <h2 class="text-lg font-bold text-slate-800">My Projects</h2>
+                            </div>
+                            <div class="divide-y divide-slate-100">
+                                ${projectListHtml}
+                            </div>
                         </div>
                     </div>
                 </div>
             `;
         }
 
-        // --- CHAT VIEW ---
-        function renderChat() {
-            const chatId = [state.user.id, state.activeChat.partnerId].sort().join('_');
-            const chatMsgs = state.messages.filter(m => m.chatId === chatId);
+        function renderFreelancerDashboard() {
+            // Find active bids
+            const myBids = state.bids.filter(b => b.freelancerId === state.user.id);
+            const activeBids = myBids.filter(b => {
+                const proj = state.projects.find(p => p.id === b.projectId);
+                return proj && proj.status === 'open';
+            });
 
-            let msgsHtml = chatMsgs.map(m => {
-                if(m.senderId === 'system') {
-                    return `<div class="text-center my-4"><span class="bg-amber-100 text-amber-800 text-xs px-3 py-1 rounded-full font-medium shadow-sm">${m.text}</span></div>`;
+            // Find current work
+            const myWork = state.projects.filter(p => p.awardedTo === state.user.id && p.status === 'in_progress');
+
+            let workHtml = myWork.map(p => `
+                <div class="p-4 border border-slate-200 rounded-lg mb-3 hover:border-blue-400 transition bg-white flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-slate-900">${p.title}</h4>
+                        <p class="text-xs text-slate-500 mt-1">Client: ${p.clientName}</p>
+                    </div>
+                    <button onclick="navigate('workspace', '${p.id}')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition">Workspace</button>
+                </div>
+            `).join('');
+            if(myWork.length===0) workHtml = `<p class="text-sm text-slate-500 p-4 bg-slate-50 rounded-lg border border-dashed border-slate-300">No active projects currently.</p>`;
+
+            let bidsHtml = activeBids.map(b => {
+                const p = state.projects.find(proj => proj.id === b.projectId);
+                if(!p) return '';
+                return `
+                <div class="p-4 border-b border-slate-100 hover:bg-slate-50 transition cursor-pointer" onclick="navigate('project_details', '${p.id}')">
+                    <div class="flex justify-between items-start mb-1">
+                        <h4 class="font-semibold text-slate-800 truncate pr-4">${p.title}</h4>
+                        <span class="font-bold text-blue-600 whitespace-nowrap">$${b.amount}</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Bid placed ${Math.round((Date.now()-b.timestamp)/60000)} mins ago</p>
+                </div>
+                `;
+            }).join('');
+            if(activeBids.length===0) bidsHtml = `<p class="text-sm text-slate-500 p-4">No active bids.</p>`;
+
+
+            container.innerHTML = `
+                <div class="grid lg:grid-cols-4 gap-8">
+                    <!-- Sidebar -->
+                    <div class="lg:col-span-1 space-y-6">
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm text-center">
+                            <div class="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-white flex items-center justify-center text-3xl font-bold mx-auto mb-4 shadow-lg">${state.user.name.charAt(0)}</div>
+                            <h2 class="text-xl font-bold text-slate-900">${state.user.name}</h2>
+                            <p class="text-sm text-emerald-600 font-medium mb-4">Available for Work</p>
+                            <div class="flex flex-wrap gap-2 justify-center mt-4">
+                                ${state.user.skills ? state.user.skills.map(s => `<span class="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold uppercase rounded border border-slate-200">${s}</span>`).join('') : '<span class="text-xs text-slate-400">No skills set</span>'}
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div class="bg-slate-50 px-4 py-3 border-b border-slate-200"><h3 class="font-bold text-slate-800 text-sm">Active Bids (${activeBids.length})</h3></div>
+                            <div class="max-h-[300px] overflow-y-auto">
+                                ${bidsHtml}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Feed -->
+                    <div class="lg:col-span-3 space-y-6">
+                        <!-- Stat Cards -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-slate-500">Available Balance</p>
+                                    <h3 class="text-2xl font-bold text-slate-900">$${state.user.balance || 0}</h3>
+                                </div>
+                                <div class="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center"><i class="ph-duotone ph-currency-dollar text-2xl text-emerald-600"></i></div>
+                            </div>
+                            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-slate-500">Jobs Completed</p>
+                                    <h3 class="text-2xl font-bold text-slate-900">0</h3>
+                                </div>
+                                <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center"><i class="ph-duotone ph-check-circle text-2xl text-blue-600"></i></div>
+                            </div>
+                        </div>
+
+                        <!-- Current Work -->
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                            <h2 class="text-lg font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Current Work & Escrow</h2>
+                            ${workHtml}
+                        </div>
+                        
+                        <!-- CTA -->
+                        <div class="bg-gradient-to-r from-slate-900 to-blue-900 rounded-xl p-8 text-white flex justify-between items-center shadow-lg">
+                            <div>
+                                <h3 class="text-xl font-bold mb-1">Find your next client</h3>
+                                <p class="text-blue-200 text-sm">Browse thousands of new projects posted today.</p>
+                            </div>
+                            <button onclick="navigate('browse')" class="bg-white text-blue-900 font-bold px-6 py-3 rounded-lg hover:bg-slate-100 transition shadow">Browse Projects</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- BROWSE PROJECTS ---
+        function renderBrowseProjects() {
+            // Apply Filters
+            let filtered = state.projects.filter(p => {
+                const matchSearch = p.title.toLowerCase().includes(state.browseFilters.search.toLowerCase());
+                const matchSkill = state.browseFilters.skill === 'All' || p.skills.includes(state.browseFilters.skill);
+                const matchStatus = p.status === state.browseFilters.status;
+                return matchSearch && matchSkill && matchStatus;
+            }).sort((a,b) => b.timestamp - a.timestamp);
+
+            let projectList = filtered.map(p => {
+                const bidCount = state.bids.filter(b => b.projectId === p.id).length;
+                const timeStr = new Date(p.timestamp).toLocaleDateString();
+                const skillTags = p.skills.map(s => `<span class="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded border border-slate-200">${s}</span>`).join(' ');
+
+                return `
+                    <div class="p-6 border-b border-slate-200 hover:bg-slate-50 transition cursor-pointer flex flex-col md:flex-row justify-between gap-6" onclick="navigate('project_details', '${p.id}')">
+                        <div class="flex-grow">
+                            <h3 class="text-xl font-bold text-slate-900 hover:text-blue-600 mb-2">${p.title}</h3>
+                            <p class="text-sm text-slate-600 mb-4 line-clamp-2">${p.desc}</p>
+                            <div class="flex flex-wrap gap-2 mb-3">${skillTags}</div>
+                            <div class="text-xs text-slate-400 font-medium flex items-center gap-4">
+                                <span class="flex items-center"><i class="ph-bold ph-clock mr-1"></i> ${timeStr}</span>
+                                <span class="flex items-center"><i class="ph-bold ph-user mr-1"></i> ${p.clientName}</span>
+                            </div>
+                        </div>
+                        <div class="md:w-48 flex-shrink-0 flex flex-col items-end md:justify-center text-right">
+                            <div class="text-xl font-bold text-slate-900 mb-1">$${p.minBudget} - $${p.maxBudget}</div>
+                            <div class="text-sm font-medium text-slate-500 mb-3">${bidCount} bids</div>
+                            <button class="bg-white border-2 border-slate-200 hover:border-blue-600 text-slate-800 hover:text-blue-600 px-4 py-2 rounded-lg font-bold text-sm transition w-full shadow-sm">View Project</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if(filtered.length === 0) projectList = `<div class="p-16 text-center text-slate-500"><i class="ph-duotone ph-magnifying-glass text-5xl mb-4 text-slate-300"></i><p class="text-lg">No projects found matching criteria.</p></div>`;
+
+            const skillOptions = ['All', ...SKILLS].map(s => `<option value="${s}" ${state.browseFilters.skill===s?'selected':''}>${s}</option>`).join('');
+
+            container.innerHTML = `
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <!-- Filter Header -->
+                    <div class="bg-slate-900 p-6 sm:p-8 text-white">
+                        <h1 class="text-3xl font-bold mb-6">Browse Projects</h1>
+                        <div class="flex flex-col md:flex-row gap-4">
+                            <div class="flex-grow bg-white/10 border border-white/20 rounded-lg flex items-center px-4 focus-within:bg-white focus-within:text-slate-900 transition-colors">
+                                <i class="ph-bold ph-magnifying-glass text-slate-400"></i>
+                                <input type="text" id="browse-search" value="${state.browseFilters.search}" placeholder="Search keywords..." class="w-full bg-transparent border-none outline-none text-inherit placeholder-slate-400 px-3 py-3">
+                            </div>
+                            <select id="browse-skill" class="bg-white/10 border border-white/20 text-white rounded-lg px-4 py-3 outline-none focus:bg-white focus:text-slate-900 transition-colors md:w-64">
+                                ${skillOptions}
+                            </select>
+                            <button onclick="applyFilters()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-8 py-3 rounded-lg transition shadow-lg">Search</button>
+                        </div>
+                    </div>
+
+                    <!-- Results List -->
+                    <div class="divide-y divide-slate-200">
+                        ${projectList}
+                    </div>
+                </div>
+            `;
+        }
+
+        function applyFilters() {
+            state.browseFilters.search = document.getElementById('browse-search').value;
+            state.browseFilters.skill = document.getElementById('browse-skill').value;
+            renderBrowseProjects();
+        }
+
+        // --- POST PROJECT ---
+        function renderPostProject() {
+            const skillChecks = SKILLS.map(s => `
+                <label class="flex items-center space-x-2 p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition">
+                    <input type="checkbox" name="project_skills" value="${s}" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500">
+                    <span class="text-sm font-medium text-slate-700">${s}</span>
+                </label>
+            `).join('');
+
+            container.innerHTML = `
+                <div class="max-w-3xl mx-auto w-full">
+                    <div class="mb-8">
+                        <h1 class="text-3xl font-bold text-slate-900 mb-2">Tell us what you need done</h1>
+                        <p class="text-slate-500">Get free quotes from skilled freelancers within minutes.</p>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sm:p-8 space-y-8">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Choose a name for your project</label>
+                            <input type="text" id="post-title" placeholder="e.g. Build me a website" class="w-full border border-slate-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Tell us more about your project</label>
+                            <textarea id="post-desc" rows="5" placeholder="Describe the specifics of your project..." class="w-full border border-slate-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">What skills are required?</label>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                ${skillChecks}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">What is your estimated budget?</label>
+                            <div class="flex items-center space-x-4">
+                                <div class="relative flex-1">
+                                    <span class="absolute left-4 top-3 text-slate-500">$</span>
+                                    <input type="number" id="post-min" placeholder="Min" class="w-full border border-slate-300 rounded-lg pl-8 pr-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none">
+                                </div>
+                                <span class="text-slate-400 font-bold">TO</span>
+                                <div class="relative flex-1">
+                                    <span class="absolute left-4 top-3 text-slate-500">$</span>
+                                    <input type="number" id="post-max" placeholder="Max" class="w-full border border-slate-300 rounded-lg pl-8 pr-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-200 pt-8 flex justify-end">
+                            <button onclick="submitProject()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-lg shadow-md transition transform hover:-translate-y-0.5">Post Project Now</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function submitProject() {
+            const title = document.getElementById('post-title').value.trim();
+            const desc = document.getElementById('post-desc').value.trim();
+            const minB = parseInt(document.getElementById('post-min').value);
+            const maxB = parseInt(document.getElementById('post-max').value);
+            
+            const checkboxes = document.querySelectorAll('input[name="project_skills"]:checked');
+            const skills = Array.from(checkboxes).map(cb => cb.value);
+
+            if(!title || !desc || isNaN(minB) || isNaN(maxB) || skills.length === 0) {
+                alert("Please fill all fields and select at least one skill.");
+                return;
+            }
+
+            const p = {
+                id: 'p_' + Date.now(),
+                clientId: state.user.id,
+                clientName: state.user.name,
+                title, desc, skills,
+                minBudget: minB, maxBudget: maxB,
+                status: 'open',
+                timestamp: Date.now()
+            };
+
+            state.projects.push(p);
+            navigate('dashboard');
+        }
+
+        // --- PROJECT DETAILS & BIDDING ---
+        function renderProjectDetails(projectId) {
+            const project = state.projects.find(p => p.id === projectId);
+            if(!project) return navigate('browse');
+
+            const isOwner = state.user && state.user.id === project.clientId;
+            const projBids = state.bids.filter(b => b.projectId === project.id).sort((a,b) => a.amount - b.amount);
+            
+            const skillTags = project.skills.map(s => `<span class="px-3 py-1 bg-blue-50 text-blue-700 font-semibold text-xs rounded-full border border-blue-100">${s}</span>`).join('');
+
+            // Bids Section HTML
+            let bidsArea = '';
+            if (isOwner) {
+                // Client sees full bids and can award
+                if(projBids.length === 0) {
+                    bidsArea = `<div class="p-8 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-500">No bids yet. Freelancers will see this project soon.</div>`;
+                } else {
+                    bidsArea = projBids.map(b => `
+                        <div class="p-5 border border-slate-200 rounded-xl mb-4 bg-white shadow-sm flex flex-col sm:flex-row justify-between gap-4">
+                            <div class="flex-grow">
+                                <div class="flex items-center mb-2">
+                                    <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-sm mr-3">${b.freelancerName.charAt(0)}</div>
+                                    <h4 class="font-bold text-slate-900">${b.freelancerName}</h4>
+                                </div>
+                                <p class="text-sm text-slate-600 mb-3 bg-slate-50 p-3 rounded border border-slate-100">"${b.proposal}"</p>
+                                <div class="text-xs text-slate-500 font-medium">Delivery: ${b.days} days</div>
+                            </div>
+                            <div class="flex flex-col items-end justify-between sm:w-40 flex-shrink-0 border-t sm:border-t-0 sm:border-l border-slate-100 pt-4 sm:pt-0 sm:pl-4">
+                                <div class="text-2xl font-bold text-slate-900 mb-2">$${b.amount}</div>
+                                ${project.status === 'open' ? 
+                                `<button onclick="awardProject('${project.id}', '${b.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg shadow-sm transition">Award Project</button>` : 
+                                (project.awardedTo === b.freelancerId ? `<span class="w-full text-center bg-slate-100 text-slate-800 font-bold py-2 rounded-lg border border-slate-200">Awarded</span>` : '')
+                                }
+                            </div>
+                        </div>
+                    `).join('');
                 }
+            } else {
+                // Freelancer sees minimal info about other bids
+                const avgBid = projBids.length > 0 ? Math.round(projBids.reduce((s,b)=>s+b.amount,0)/projBids.length) : 0;
+                
+                // Has this user already bid?
+                const myBid = projBids.find(b => b.freelancerId === state.user.id);
+                let bidForm = '';
+
+                if (project.status !== 'open') {
+                     bidForm = `<div class="p-4 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl font-medium text-center">This project is no longer accepting bids.</div>`;
+                } else if (myBid) {
+                    bidForm = `
+                        <div class="p-6 border-2 border-emerald-500 bg-emerald-50 rounded-xl">
+                            <h3 class="font-bold text-emerald-900 mb-2 flex items-center"><i class="ph-fill ph-check-circle mr-2 text-xl"></i> You have placed a bid</h3>
+                            <p class="text-sm text-emerald-800 mb-2">Amount: <strong>$${myBid.amount}</strong> in ${myBid.days} days.</p>
+                            <p class="text-xs text-emerald-700 opacity-80">Waiting for client to award.</p>
+                        </div>
+                    `;
+                } else if (state.user && state.user.role === 'freelancer') {
+                    bidForm = `
+                        <div class="p-6 bg-white border border-slate-200 rounded-xl shadow-sm">
+                            <h3 class="font-bold text-lg text-slate-900 mb-4 border-b border-slate-100 pb-2">Place a Bid</h3>
+                            <div class="space-y-4">
+                                <div class="flex gap-4">
+                                    <div class="flex-1">
+                                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Bid Amount ($)</label>
+                                        <input type="number" id="bid-amount" placeholder="e.g. 500" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
+                                    </div>
+                                    <div class="flex-1">
+                                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Delivery (Days)</label>
+                                        <input type="number" id="bid-days" placeholder="e.g. 7" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Proposal</label>
+                                    <textarea id="bid-prop" rows="4" placeholder="Why are you the best fit for this project?" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></textarea>
+                                </div>
+                                <button onclick="placeBid('${project.id}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-sm transition">Submit Proposal</button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                bidsArea = `
+                    <div class="grid md:grid-cols-3 gap-8">
+                        <div class="md:col-span-2">${bidForm}</div>
+                        <div class="md:col-span-1">
+                            <div class="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                                <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider">Bid Stats</h4>
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-slate-500 text-sm">Total Bids</span>
+                                    <span class="font-bold text-slate-900">${projBids.length}</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-slate-500 text-sm">Average Bid</span>
+                                    <span class="font-bold text-slate-900">$${avgBid}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = `
+                <div class="max-w-5xl mx-auto w-full">
+                    <!-- Project Header -->
+                    <div class="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 mb-8 shadow-sm">
+                        <div class="flex flex-col md:flex-row justify-between gap-6 mb-6">
+                            <div>
+                                <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">${project.title}</h1>
+                                <div class="flex items-center gap-4 text-sm text-slate-500 font-medium">
+                                    <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 uppercase text-[10px] tracking-widest font-bold">${project.status.replace('_',' ')}</span>
+                                    <span>Posted ${new Date(project.timestamp).toLocaleDateString()}</span>
+                                </div>
+                            </div>
+                            <div class="text-left md:text-right bg-slate-50 p-4 rounded-xl border border-slate-100 self-start">
+                                <p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Client Budget</p>
+                                <p class="text-2xl font-extrabold text-slate-900">$${project.minBudget} - $${project.maxBudget}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="prose max-w-none text-slate-700 mb-6">
+                            <p>${project.desc.replace(/\n/g, '<br>')}</p>
+                        </div>
+                        
+                        <div class="border-t border-slate-100 pt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div class="flex flex-wrap gap-2">${skillTags}</div>
+                            <div class="text-sm font-medium text-slate-600 flex items-center bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                                <i class="ph-fill ph-user-circle text-xl mr-2 text-slate-400"></i> Client: <strong class="ml-1 text-slate-900">${project.clientName}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bids Section -->
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900 mb-4">${isOwner ? 'Proposals ('+projBids.length+')' : 'Bidding'}</h2>
+                        ${bidsArea}
+                    </div>
+                </div>
+            `;
+        }
+
+        function placeBid(projectId) {
+            const amount = parseInt(document.getElementById('bid-amount').value);
+            const days = parseInt(document.getElementById('bid-days').value);
+            const prop = document.getElementById('bid-prop').value.trim();
+
+            if(!amount || !days || !prop) { alert("Fill all bid details."); return; }
+
+            state.bids.push({
+                id: 'b_' + Date.now(),
+                projectId,
+                freelancerId: state.user.id,
+                freelancerName: state.user.name,
+                amount, days, proposal: prop,
+                timestamp: Date.now()
+            });
+            renderProjectDetails(projectId);
+        }
+
+        function awardProject(projectId, bidId) {
+            if(!confirm("Are you sure you want to award the project to this freelancer? This will create an Escrow Milestone.")) return;
+
+            const pIdx = state.projects.findIndex(p => p.id === projectId);
+            const bid = state.bids.find(b => b.id === bidId);
+            
+            // Check Client Balance
+            if(state.user.balance < bid.amount) {
+                alert(`Insufficient balance! You have $${state.user.balance}, but need $${bid.amount} to fund escrow.`);
+                return;
+            }
+
+            // Deduct balance and update project
+            state.user.balance -= bid.amount;
+            state.projects[pIdx].status = 'in_progress';
+            state.projects[pIdx].awardedTo = bid.freelancerId;
+            state.projects[pIdx].awardedBidAmount = bid.amount; // Store agreed amount
+
+            // Create Milestone (Funded Escrow)
+            state.milestones.push({
+                id: 'm_' + Date.now(),
+                projectId: projectId,
+                amount: bid.amount,
+                status: 'funded', // funded -> requested -> released
+                timestamp: Date.now()
+            });
+
+            // Initialize chat
+            const chatId = projectId; // Use project ID as chat room ID
+            state.messages.push({
+                id: 'msg_' + Date.now(),
+                chatId: chatId,
+                senderId: 'system',
+                text: `Project awarded to ${bid.freelancerName} for $${bid.amount}. Milestone funded in Escrow.`,
+                timestamp: Date.now()
+            });
+
+            saveData();
+            navigate('workspace', projectId);
+        }
+
+
+        // --- WORKSPACE (Chat & Milestones) ---
+        function renderWorkspace(projectId) {
+            const project = state.projects.find(p => p.id === projectId);
+            if(!project || !state.user) return navigate('home');
+
+            const isClient = state.user.id === project.clientId;
+            const partnerId = isClient ? project.awardedTo : project.clientId;
+            const partnerName = isClient ? (state.bids.find(b=>b.projectId===projectId && b.freelancerId===project.awardedTo)?.freelancerName || 'Freelancer') : project.clientName;
+
+            // Milestones Logic
+            const projMilestones = state.milestones.filter(m => m.projectId === projectId);
+            let milestoneHtml = projMilestones.map(m => {
+                let badge = '';
+                let action = '';
+
+                if(m.status === 'funded') {
+                    badge = `<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">In Escrow</span>`;
+                    if(!isClient) action = `<button onclick="requestRelease('${m.id}')" class="text-xs bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-600 font-bold px-3 py-1.5 rounded transition shadow-sm w-full mt-2">Request Release</button>`;
+                } else if(m.status === 'requested') {
+                    badge = `<span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Review Requested</span>`;
+                    if(isClient) action = `<button onclick="releaseMilestone('${m.id}')" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded transition shadow-sm w-full mt-2">Approve & Release</button>`;
+                    else action = `<p class="text-[10px] text-slate-500 mt-2 text-center italic">Waiting for client...</p>`;
+                } else if(m.status === 'released') {
+                    badge = `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Released</span>`;
+                }
+
+                return `
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-2 shadow-sm">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold text-slate-900">$${m.amount}</span>
+                            ${badge}
+                        </div>
+                        ${action}
+                    </div>
+                `;
+            }).join('');
+
+            // Chat Logic
+            const chatMsgs = state.messages.filter(m => m.chatId === projectId);
+            let msgsHtml = chatMsgs.map(m => {
+                if(m.senderId === 'system') return `<div class="text-center my-3"><span class="bg-slate-200 text-slate-600 text-xs px-3 py-1 rounded-full font-medium">${m.text}</span></div>`;
                 const isMe = m.senderId === state.user.id;
                 return `
                     <div class="flex ${isMe ? 'justify-end' : 'justify-start'} mb-3">
-                        <div class="max-w-[75%] rounded-2xl px-4 py-2 shadow-sm ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-200 text-gray-800 rounded-bl-none'}">
+                        <div class="max-w-[85%] rounded-2xl px-4 py-2 text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'}">
                             ${m.text}
                         </div>
                     </div>
                 `;
             }).join('');
-
-            if(chatMsgs.length === 0) msgsHtml = `<div class="h-full flex items-center justify-center text-gray-400">Say hello to start the conversation!</div>`;
-
-            // Identify where to go back
-            const backView = state.checkoutGig ? 'dashboard' : 'inbox';
+            if(chatMsgs.length === 0) msgsHtml = `<div class="h-full flex items-center justify-center text-slate-400 text-sm">Send a message to start collaborating.</div>`;
 
             container.innerHTML = `
-                <div class="flex-grow max-w-3xl w-full mx-auto p-4 flex flex-col h-[calc(100vh-64px)]">
-                    <div class="bg-white rounded-t-2xl shadow-sm border border-b-0 p-4 flex items-center justify-between">
-                        <div class="flex items-center">
-                            <button onclick="navigate('${backView}')" class="mr-3 p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition"><i class="ph-bold ph-arrow-left"></i></button>
-                            <div class="flex items-center">
-                                <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold mr-3">
-                                    ${state.activeChat.partnerName.charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                    <h2 class="font-bold text-lg leading-tight">${state.activeChat.partnerName}</h2>
-                                    <p class="text-xs text-emerald-500 font-medium">Online</p>
+                <div class="max-w-6xl mx-auto w-full h-[calc(100vh-120px)] flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                    
+                    <!-- Header -->
+                    <div class="bg-slate-900 p-4 sm:p-5 flex justify-between items-center text-white shrink-0">
+                        <div>
+                            <h2 class="font-bold text-lg leading-tight truncate max-w-md">${project.title}</h2>
+                            <p class="text-xs text-slate-400 flex items-center mt-1">
+                                <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2 shadow-[0_0_5px_#10b981]"></span> Workspace with ${partnerName}
+                            </p>
+                        </div>
+                        ${isClient && project.status === 'in_progress' ? `<button onclick="markCompleted('${project.id}')" class="text-xs border border-white/30 hover:bg-white/10 px-3 py-1.5 rounded transition font-medium">Close Project</button>` : ''}
+                    </div>
+
+                    <!-- Body -->
+                    <div class="flex flex-1 overflow-hidden flex-col md:flex-row">
+                        
+                        <!-- Chat Area -->
+                        <div class="flex-1 flex flex-col bg-slate-50 relative">
+                            <div id="workspace-chat" class="flex-1 p-4 overflow-y-auto no-scrollbar absolute inset-0 bottom-16">
+                                ${msgsHtml}
+                            </div>
+                            <div class="absolute bottom-0 left-0 right-0 p-3 bg-white border-t border-slate-200">
+                                <div class="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200">
+                                    <input type="text" id="ws-chat-input" onkeypress="if(event.key==='Enter') sendWsMsg('${projectId}')" placeholder="Type a message..." class="flex-1 bg-transparent border-none outline-none px-4 py-2 text-sm text-slate-800">
+                                    <button onclick="sendWsMsg('${projectId}')" class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition shadow-sm"><i class="ph-bold ph-paper-plane-right"></i></button>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div id="chat-messages-container" class="flex-grow bg-[#f8f9fa] border-x border-gray-200 p-4 overflow-y-auto no-scrollbar shadow-inner">
-                        ${msgsHtml}
-                    </div>
-                    
-                    <div class="bg-white rounded-b-2xl shadow-sm border p-3 flex items-center">
-                        <input type="text" id="chat-input" onkeypress="handleChatKeyPress(event)" placeholder="Type a message..." class="flex-grow bg-gray-100 rounded-full px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500">
-                        <button onclick="sendChatMessage()" class="ml-2 bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-full transition flex-shrink-0 shadow-md">
-                            <i class="ph-bold ph-paper-plane-right text-xl"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
 
-            const msgContainer = document.getElementById('chat-messages-container');
-            msgContainer.scrollTop = msgContainer.scrollHeight;
-        }
-
-        // --- CHECKOUT VIEW ---
-        function renderCheckout() {
-            const gig = state.checkoutGig;
-            container.innerHTML = `
-                <div class="flex-grow flex items-center justify-center p-4">
-                    <div class="bg-white max-w-md w-full rounded-2xl shadow-xl overflow-hidden">
-                        <div class="bg-slate-900 p-6 text-white text-center relative">
-                            <button onclick="state.checkoutGig = null; navigate('dashboard')" class="absolute top-4 left-4 text-slate-400 hover:text-white transition"><i class="ph-bold ph-x text-xl"></i></button>
-                            <i class="ph-bold ph-lock-key text-5xl mb-2 text-indigo-400"></i>
-                            <h2 class="text-2xl font-bold">Secure Escrow Checkout</h2>
-                        </div>
-                        <div class="p-6">
-                            <div class="border border-gray-200 bg-gray-50 rounded-xl p-4 mb-6 shadow-sm">
-                                <h3 class="font-bold text-gray-900 text-lg">${gig.title}</h3>
-                                <p class="text-sm text-gray-500 mb-3">by ${gig.freelancerName}</p>
-                                <div class="flex justify-between items-center border-t pt-3 font-bold text-xl">
-                                    <span>Total Amount</span>
-                                    <span class="text-indigo-600">$${gig.price}</span>
-                                </div>
+                        <!-- Sidebar (Milestones) -->
+                        <div class="w-full md:w-72 border-t md:border-t-0 md:border-l border-slate-200 bg-white flex flex-col shrink-0">
+                            <div class="p-4 border-b border-slate-100 bg-slate-50">
+                                <h3 class="font-bold text-slate-800 text-sm uppercase tracking-wider flex items-center"><i class="ph-fill ph-lock-key mr-2 text-slate-400"></i> Milestones</h3>
                             </div>
-
-                            <div class="bg-indigo-50 text-indigo-800 text-xs p-3 rounded-lg border border-indigo-100 mb-6">
-                                <i class="ph-bold ph-info mr-1"></i> Funds will be held securely by Flexsora Admin until you approve the delivered work.
+                            <div class="p-4 overflow-y-auto flex-1">
+                                ${milestoneHtml}
                             </div>
-
-                            <button onclick="simulatePayment()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-md transition transform hover:-translate-y-1">
-                                Pay Securely
-                            </button>
                         </div>
                     </div>
                 </div>
             `;
-        }
-
-
-        // ==========================================
-        // 4. ACTION LOGIC
-        // ==========================================
-
-        function login(role) {
-            let nameInput = document.getElementById('login-name').value.trim();
-            if(role === 'admin') nameInput = 'System Admin'; // Auto-name for admin
             
-            if(!nameInput) {
-                alert("Please enter a name for testing.");
-                return;
-            }
+            const chatBox = document.getElementById('workspace-chat');
+            if(chatBox) chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function sendWsMsg(projectId) {
+            const input = document.getElementById('ws-chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+            state.messages.push({
+                id: 'msg_' + Date.now(), chatId: projectId, senderId: state.user.id, text, timestamp: Date.now()
+            });
+            renderWorkspace(projectId);
+        }
+
+        function requestRelease(milestoneId) {
+            const mIdx = state.milestones.findIndex(m => m.id === milestoneId);
+            state.milestones[mIdx].status = 'requested';
             
-            const id = role.charAt(0) + '_' + nameInput.toLowerCase().replace(/\s+/g, '') + '_' + Math.floor(Math.random()*1000);
-            
-            state.user = { id: id, name: nameInput, role: role };
-            
-            // Register user in mock DB if not exists
-            if(!state.users.find(u => u.name === nameInput && u.role === role)) {
-                state.users.push(state.user);
-            }
-
-            navigate(role === 'admin' ? 'admin' : 'dashboard');
+            state.messages.push({
+                id: 'msg_' + Date.now(), chatId: state.milestones[mIdx].projectId, senderId: 'system',
+                text: `Freelancer has requested release of $${state.milestones[mIdx].amount} milestone. Client review required.`, timestamp: Date.now()
+            });
+            renderWorkspace(state.milestones[mIdx].projectId);
         }
 
-        function logout() {
-            state.user = null;
-            navigate('login');
-        }
+        function releaseMilestone(milestoneId) {
+            if(!confirm("Release funds to Freelancer? This cannot be undone.")) return;
+            const mIdx = state.milestones.findIndex(m => m.id === milestoneId);
+            const m = state.milestones[mIdx];
+            m.status = 'released';
 
-        // Search & Filter updates
-        function updateFilters() {
-            state.searchQuery = document.getElementById('search-input').value;
-            state.filterCategory = document.getElementById('category-filter').value;
-            state.sortBy = document.getElementById('sort-filter').value;
-            renderBuyerDashboard(); // re-render without saving state to avoid glitching, but let's just use navigate logic cleanly.
-        }
-
-        function postGig() {
-            const title = document.getElementById('gig-title').value.trim();
-            const desc = document.getElementById('gig-desc').value.trim();
-            const price = document.getElementById('gig-price').value;
-            const cat = document.getElementById('gig-category').value;
-
-            if(!title || !desc || !price) {
-                alert("Please fill all fields");
-                return;
-            }
-
-            const newGig = {
-                id: 'gig_' + Date.now(),
-                freelancerId: state.user.id,
-                freelancerName: state.user.name,
-                title: title,
-                desc: desc,
-                price: parseFloat(price),
-                category: cat,
-                timestamp: Date.now()
-            };
-
-            state.gigs.unshift(newGig); 
-            navigate('dashboard'); 
-        }
-
-        function deleteGig(gigId) {
-            if(confirm("Delete this gig?")) {
-                state.gigs = state.gigs.filter(g => g.id !== gigId);
-                navigate('dashboard');
-            }
-        }
-
-        function openChat(partnerId, partnerName) {
-            state.activeChat = { partnerId, partnerName };
-            navigate('chat');
-        }
-
-        function handleChatKeyPress(e) {
-            if(e.key === 'Enter') sendChatMessage();
-        }
-
-        function sendChatMessage(sysText = null, targetChatId = null) {
-            let text = sysText;
-            let sender = 'system';
-            let chatId = targetChatId;
-
-            // Manual user message
-            if(!sysText) {
-                const input = document.getElementById('chat-input');
-                text = input.value.trim();
-                if(!text) return;
-                chatId = [state.user.id, state.activeChat.partnerId].sort().join('_');
-                sender = state.user.id;
+            // Find freelancer and update balance
+            const proj = state.projects.find(p => p.id === m.projectId);
+            const freeIdx = state.users.findIndex(u => u.id === proj.awardedTo);
+            if(freeIdx > -1) {
+                state.users[freeIdx].balance = (state.users[freeIdx].balance || 0) + m.amount;
+                // If the user is currently logged in, update session state too
+                if(state.user.id === state.users[freeIdx].id) state.user.balance += m.amount;
             }
 
             state.messages.push({
-                id: 'msg_' + Date.now() + Math.random(),
-                chatId: chatId,
-                senderId: sender,
-                senderName: state.user ? state.user.name : 'System',
-                text: text,
-                timestamp: Date.now()
+                id: 'msg_' + Date.now(), chatId: m.projectId, senderId: 'system',
+                text: `✅ Milestone of $${m.amount} released to Freelancer!`, timestamp: Date.now()
             });
-
-            if(!sysText) navigate('chat'); // only redirect if manual message
+            renderWorkspace(m.projectId);
         }
 
-        function openCheckout(gigId) {
-            state.checkoutGig = state.gigs.find(g => g.id === gigId);
-            navigate('checkout');
+        function markCompleted(projectId) {
+            if(!confirm("Close project? Ensure all milestones are released.")) return;
+            const pIdx = state.projects.findIndex(p => p.id === projectId);
+            state.projects[pIdx].status = 'completed';
+            navigate('dashboard');
         }
 
-        function simulatePayment() {
-            const gig = state.checkoutGig;
-            
-            // Create Order
-            const newOrder = {
-                id: 'ord_' + Date.now(),
-                gigId: gig.id,
-                gigTitle: gig.title,
-                buyerId: state.user.id,
-                buyerName: state.user.name,
-                freelancerId: gig.freelancerId,
-                freelancerName: gig.freelancerName,
-                price: gig.price,
-                status: 'pending_delivery', // Escrow holding
-                timestamp: Date.now()
-            };
-            state.orders.push(newOrder);
 
-            // System message to chat
-            const chatId = [state.user.id, gig.freelancerId].sort().join('_');
-            sendChatMessage(`🎉 New Order! $${gig.price} secured in Escrow for "${gig.title}". Freelancer, please deliver on the Orders page.`, chatId);
+        // --- ADMIN VIEW ---
+        function renderAdmin() {
+            const totalProj = state.projects.length;
+            const totalEscrow = state.milestones.filter(m=>m.status!=='released').reduce((s,m)=>s+m.amount,0);
+            const releasedFunds = state.milestones.filter(m=>m.status==='released').reduce((s,m)=>s+m.amount,0);
 
-            alert("Payment Successful! Funds are secured in Escrow. Check your Orders tab.");
-            state.checkoutGig = null;
-            navigate('orders');
+            container.innerHTML = `
+                <div class="max-w-6xl mx-auto w-full space-y-8">
+                    <div class="bg-slate-900 p-8 rounded-2xl text-white shadow-lg flex items-center justify-between">
+                        <div>
+                            <h1 class="text-3xl font-bold mb-1"><i class="ph-fill ph-shield-check text-blue-400 mr-2"></i>Platform Admin</h1>
+                            <p class="text-slate-400">System overview and financial metrics.</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-blue-500">
+                            <p class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Total Projects</p>
+                            <h2 class="text-3xl font-extrabold text-slate-900">${totalProj}</h2>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-amber-500">
+                            <p class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Funds in Escrow</p>
+                            <h2 class="text-3xl font-extrabold text-slate-900">$${totalEscrow}</h2>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-emerald-500">
+                            <p class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Funds Paid Out</p>
+                            <h2 class="text-3xl font-extrabold text-slate-900">$${releasedFunds}</h2>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-4 bg-slate-50 border-b border-slate-200"><h3 class="font-bold text-slate-800">Registered Users (${state.users.length})</h3></div>
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-white text-slate-500 border-b border-slate-100">
+                                <tr><th class="p-4 font-semibold">User</th><th class="p-4 font-semibold">Role</th><th class="p-4 font-semibold text-right">System Balance</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${state.users.map(u => `
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="p-4 font-medium text-slate-900">${u.name}</td>
+                                        <td class="p-4 uppercase text-xs tracking-wider font-bold text-slate-500">${u.role}</td>
+                                        <td class="p-4 text-right font-bold text-slate-700">$${u.balance || 0}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
         }
 
-        // Freelancer Action
-        function submitDelivery(orderId) {
-            const linkInput = document.getElementById('delivery_link_' + orderId);
-            const link = linkInput.value.trim();
-            if(!link) { alert("Please provide a link to the finished work."); return; }
-
-            const orderIndex = state.orders.findIndex(o => o.id === orderId);
-            if(orderIndex > -1) {
-                state.orders[orderIndex].status = 'delivered';
-                state.orders[orderIndex].deliveryLink = link;
-                
-                // Notify via chat
-                const o = state.orders[orderIndex];
-                const chatId = [o.buyerId, o.freelancerId].sort().join('_');
-                sendChatMessage(`📦 Delivery Submitted for "${o.gigTitle}". Buyer, please review in your Orders tab.`, chatId);
-                
-                navigate('orders');
-            }
-        }
-
-        // Buyer Action
-        function approveDelivery(orderId) {
-            if(!confirm("Are you sure? Approving this will tell Admin to release funds to the freelancer.")) return;
-            
-            const orderIndex = state.orders.findIndex(o => o.id === orderId);
-            if(orderIndex > -1) {
-                state.orders[orderIndex].status = 'approved';
-                
-                // Notify via chat
-                const o = state.orders[orderIndex];
-                const chatId = [o.buyerId, o.freelancerId].sort().join('_');
-                sendChatMessage(`✅ Buyer approved the delivery for "${o.gigTitle}". Waiting for Admin payout.`, chatId);
-
-                navigate('orders');
-            }
-        }
-
-        // Admin Action
-        function releaseFunds(orderId) {
-            if(!confirm("Release funds from Escrow to Freelancer?")) return;
-
-            const orderIndex = state.orders.findIndex(o => o.id === orderId);
-            if(orderIndex > -1) {
-                state.orders[orderIndex].status = 'paid_out';
-                
-                const o = state.orders[orderIndex];
-                const chatId = [o.buyerId, o.freelancerId].sort().join('_');
-                sendChatMessage(`💸 Admin has released $${o.price} to ${o.freelancerName}. Order Complete!`, chatId);
-
-                navigate('admin');
-            }
+        // --- HOME / LANDING ---
+        function renderHome() {
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-20 text-center max-w-4xl mx-auto">
+                    <div class="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold uppercase tracking-wider mb-8 shadow-sm">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 mr-2 animate-pulse"></span> Prototype V2 Active
+                    </div>
+                    <h1 class="text-5xl sm:text-6xl font-extrabold text-slate-900 tracking-tight leading-tight mb-6">
+                        Hire the best freelancers for any job, <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">online.</span>
+                    </h1>
+                    <p class="text-lg sm:text-xl text-slate-500 mb-10 max-w-2xl leading-relaxed">
+                        Millions of people use Flexsora to turn their ideas into reality. From web design to video editing, find the perfect talent for your budget.
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                        <button onclick="navigate('login')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition transform hover:-translate-y-1 w-full sm:w-auto">Hire a Freelancer</button>
+                        <button onclick="navigate('login')" class="bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-800 font-bold text-lg px-8 py-4 rounded-xl shadow-sm transition w-full sm:w-auto">Earn Money Freelancing</button>
+                    </div>
+                    
+                    <div class="mt-20 pt-10 border-t border-slate-200 w-full grid grid-cols-2 sm:grid-cols-4 gap-8 opacity-60 grayscale hover:grayscale-0 transition duration-500">
+                        <!-- Mock logos -->
+                        <div class="text-2xl font-black font-serif text-slate-400">AMAZON</div>
+                        <div class="text-2xl font-black font-sans text-slate-400 tracking-tighter">FACEBOOK</div>
+                        <div class="text-2xl font-black font-mono text-slate-400">GOOGLE</div>
+                        <div class="text-2xl font-black text-slate-400 italic">netflix</div>
+                    </div>
+                </div>
+            `;
         }
 
         // ==========================================
-        // 5. INITIALIZATION
+        // INITIALIZATION
         // ==========================================
         window.onload = () => {
             loadData();
-            if(state.user) {
-                navigate(state.user.role === 'admin' ? 'admin' : 'dashboard');
-            } else {
-                navigate('login');
-            }
+            navigate(state.user ? 'dashboard' : 'home');
         };
 
     </script>
