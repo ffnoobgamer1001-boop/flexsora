@@ -59,10 +59,15 @@
         const ADMIN_EMAIL = "akbarjalaluddin822@gmail.com"; 
 
         // Firebase Setup
+        // Replace EVERYTHING inside the { } with your exact Firebase config
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyC9Gd1HlMZ6CKUo0fd83B9tbaNC_6KwHGM",
+            apiKey: "AIzaSyC9Gd1HlMZ6CKUo0fd83B9tbaNC_6KwHGM", // Replace with your actual API key
             authDomain: "flexsora-7cae3.firebaseapp.com",
-            projectId: "flexsora-7cae3"
+            projectId: "flexsora-7cae3",
+            storageBucket: "flexsora-7cae3.firebasestorage.app",
+            messagingSenderId: "727034750215",
+            appId: "1:727034750215:web:cd6a6d7acdb2601b8e11a2",
+            measurementId: "G-2Q878ZH310"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -110,35 +115,41 @@
 
         onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                // Fetch User Profile from Database
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', firebaseUser.uid);
-                const userSnap = await getDoc(userRef);
+                try {
+                    // Fetch User Profile from Database
+                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', firebaseUser.uid);
+                    const userSnap = await getDoc(userRef);
 
-                if (userSnap.exists()) {
-                    window.state.user = userSnap.data();
-                    
-                    // Force admin role if email matches
-                    if(window.state.user.email === ADMIN_EMAIL && window.state.user.role !== 'admin') {
-                        window.state.user.role = 'admin';
-                        await updateDoc(userRef, { role: 'admin' });
-                    }
+                    if (userSnap.exists()) {
+                        window.state.user = userSnap.data();
+                        
+                        // Force admin role if email matches
+                        if(window.state.user.email === ADMIN_EMAIL && window.state.user.role !== 'admin') {
+                            window.state.user.role = 'admin';
+                            await updateDoc(userRef, { role: 'admin' });
+                        }
 
-                    setupRealtimeListeners();
-                    navigate('dashboard');
-                } else {
-                    // New User Registration
-                    window.state.user = { 
-                        uid: firebaseUser.uid, 
-                        name: firebaseUser.displayName || 'New User', 
-                        email: firebaseUser.email || 'anonymous@flexsora.com'
-                    };
-                    
-                    if(window.state.user.email === ADMIN_EMAIL) {
-                         // Auto-register Admin
-                         window.completeRegistration('admin');
+                        setupRealtimeListeners();
+                        navigate('dashboard');
                     } else {
-                         navigate('onboarding');
+                        // New User Registration
+                        window.state.user = { 
+                            uid: firebaseUser.uid, 
+                            name: firebaseUser.displayName || 'New User', 
+                            email: firebaseUser.email || 'anonymous@flexsora.com'
+                        };
+                        
+                        if(window.state.user.email === ADMIN_EMAIL) {
+                             // Auto-register Admin
+                             window.completeRegistration('admin');
+                        } else {
+                             navigate('onboarding');
+                        }
                     }
+                } catch (error) {
+                    console.error("Database connection error:", error);
+                    alert("Database Error: " + error.message + "\n\nPlease make sure you created the Firestore Database and set it to 'Test Mode'.");
+                    signOut(auth); // Sign them out so they aren't stuck
                 }
             } else {
                 window.state.user = null;
@@ -204,7 +215,7 @@
                 await signInWithPopup(auth, provider);
             } catch (error) {
                 console.error("Login failed", error);
-                alert("Google Login popup blocked. Please open this site outside of an iframe or use the simulated preview login.");
+                alert("Google Login Error: " + error.message + "\n\n(If it says unauthorized domain, make sure you added your github.io link to Firebase Auth settings!)");
             }
         };
 
